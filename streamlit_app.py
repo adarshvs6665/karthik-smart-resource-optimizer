@@ -3,6 +3,62 @@ import pandas as pd
 import plotly.graph_objects as go
 from datetime import datetime
 from sro import SmartResourceOptimizer, ROLE_DISPLAY_MAPPING
+import warnings
+
+warnings.filterwarnings("ignore", message=r".*was created with a default value.*")
+
+sample_workloads = [
+    {
+        "role": "ML_TRAIN",
+        "app_name": "tensorflow_training",
+        "gpu_request": 4,
+        "memory_request": 32000,
+        "disk_request": 500000,
+        "max_instance_per_node": 1,
+        "estimated_execution_hours": 6,
+        "description": "Deep learning model training"
+    },
+    {
+        "role": "ML_INFERENCE",
+        "app_name": "model_serving",
+        "gpu_request": 1,
+        "memory_request": 16000,
+        "disk_request": 100000,
+        "max_instance_per_node": 2,
+        "estimated_execution_hours": 4,
+        "description": "Real-time model inference"
+    },
+    {
+        "role": "ETL",
+        "app_name": "data_preprocessing", 
+        "gpu_request": 0,
+        "memory_request": 8000,
+        "disk_request": 200000,
+        "max_instance_per_node": 4,
+        "estimated_execution_hours": 3,
+        "description": "ETL data transformation"
+    },
+    {
+        "role": "ML_TRAIN",
+        "app_name": "hyperparameter_tuning",
+        "gpu_request": 2,
+        "memory_request": 24000,
+        "disk_request": 300000,
+        "max_instance_per_node": 1,
+        "estimated_execution_hours": 12,
+        "description": "ML hyperparameter optimization"
+    },
+    {
+        "role": "ETL",
+        "app_name": "batch_processing",
+        "gpu_request": 0,
+        "memory_request": 12000,
+        "disk_request": 800000,
+        "max_instance_per_node": 3,
+        "estimated_execution_hours": 5,
+        "description": "Large-scale batch data processing"
+    }
+]
 
 st.set_page_config(
     page_title="Smart Resource Optimizer",
@@ -269,8 +325,8 @@ st.markdown(
             }
             
             [data-testid="stSidebarUserContent"] {
-                height: 100%;
-                padding: 2rem 1.5rem !important;
+                min-height: 99.8vh;
+                padding: 1.4rem 1.5rem 1.4rem 1.5rem !important;
                 background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
             }
             
@@ -331,81 +387,111 @@ if 'prediction_made' not in st.session_state:
 if 'workload_config' not in st.session_state:
     st.session_state.workload_config = {}
 
-st.sidebar.header("Workload Configuration")
+with st.sidebar:
+    template_names = [w["app_name"] for w in sample_workloads]
+    selected_template = st.selectbox("Choose from a template", ["Custom"] + template_names, key="template_selector")
+
+    if selected_template != "Custom":
+        tpl = next((w for w in sample_workloads if w["app_name"] == selected_template), None)
+        if tpl:
+            reverse_role_map = {v: k for k, v in ROLE_DISPLAY_MAPPING.items()}
+            st.session_state.role_display = reverse_role_map.get(
+                tpl["role"], list(ROLE_DISPLAY_MAPPING.keys())[0]
+            )
+            st.session_state.app_name = tpl["app_name"]
+            st.session_state.description = tpl.get("description", "")
+            st.session_state.gpu_request = int(tpl["gpu_request"])
+            st.session_state.memory_request = int(tpl["memory_request"])
+            st.session_state.disk_request = int(tpl["disk_request"])
+            st.session_state.max_instance_per_node = int(tpl["max_instance_per_node"])
+            st.session_state.estimated_execution_hours = float(tpl["estimated_execution_hours"])
 
 with st.sidebar.form("workload_form"):
-    st.subheader("Basic Information")
-    
+    st.subheader("Workload Configuration")
+
+    _role_options = list(ROLE_DISPLAY_MAPPING.keys())
+    _role_idx = _role_options.index(
+        st.session_state.get("role_display", _role_options[0])
+    ) if st.session_state.get("role_display") in _role_options else 0
+
     role_display = st.selectbox(
         "Workload Type",
-        options=list(ROLE_DISPLAY_MAPPING.keys()),
+        options=_role_options,
+        index=_role_idx,
+        key="role_display",
     )
-    
+
     app_name = st.text_input(
         "Application Name",
-        value="my_application",
+        value=st.session_state.get("app_name", "my_application"),
+        key="app_name",
     )
-    
+
     description = st.text_area(
         "Description",
-        value="",
+        value=st.session_state.get("description", ""),
+        key="description",
     )
-    
+
     st.subheader("Resource Requirements")
-    
+
     col1, col2 = st.columns(2)
-    
+
     with col1:
         gpu_request = st.number_input(
             "GPU Count",
             min_value=0,
             max_value=32,
-            value=2,
-            help="Number of GPUs required"
+            value=int(st.session_state.get("gpu_request", 2)),
+            key="gpu_request",
+            help="Number of GPUs required",
         )
-        
+
         memory_request = st.number_input(
             "Memory (MB)",
             min_value=1024,
             max_value=1048576,
-            value=8192,
+            value=int(st.session_state.get("memory_request", 8192)),
             step=1024,
-            help="Memory requirement in megabytes"
+            key="memory_request",
+            help="Memory requirement in megabytes",
         )
-    
+
     with col2:
         disk_request = st.number_input(
             "Disk Space (MB)",
             min_value=1024,
             max_value=10485760,
-            value=50000,
+            value=int(st.session_state.get("disk_request", 50000)),
             step=1024,
-            help="Disk space requirement in megabytes"
+            key="disk_request",
+            help="Disk space requirement in megabytes",
         )
-        
+
         max_instance_per_node = st.number_input(
             "IPN",
             min_value=1,
             max_value=10,
-            value=1,
-            help="Maximum number of instances per node"
+            value=int(st.session_state.get("max_instance_per_node", 1)),
+            key="max_instance_per_node",
+            help="Maximum number of instances per node",
         )
-    
+
     estimated_execution_hours = st.number_input(
         "Estimated Runtime (hours)",
         min_value=0.5,
         max_value=168.0,
-        value=8.0,
+        value=float(st.session_state.get("estimated_execution_hours", 8.0)),
         step=0.5,
-        help="Expected execution time in hours"
+        key="estimated_execution_hours",
+        help="Expected execution time in hours",
     )
-    
+
     submitted = st.form_submit_button("Optimize Resources")
-    
+
     if submitted:
-        # Map display name to actual role
         actual_role = ROLE_DISPLAY_MAPPING[role_display]
-        
+
         st.session_state.workload_config = {
             "role": actual_role,
             "app_name": app_name,
@@ -414,7 +500,7 @@ with st.sidebar.form("workload_form"):
             "disk_request": disk_request,
             "max_instance_per_node": max_instance_per_node,
             "estimated_execution_hours": estimated_execution_hours,
-            "description": description if description else f"{role_display} workload"
+            "description": description if description else f"{role_display} workload",
         }
         st.session_state.prediction_made = True
         st.rerun()
@@ -428,7 +514,6 @@ if st.session_state.prediction_made:
     instance_recommendations = optimizer.optimize_instance_selection([config])
     schedule_results = optimizer.schedule_workloads([config])
     
-    # Display results in three columns
     col1, col2, col3 = st.columns(3)
     
     with col1:
@@ -501,6 +586,7 @@ if st.session_state.prediction_made:
                 font_color='#fafafa',
                 title_font_size=18,
                 yaxis_title='Cost ($)',
+                yaxis=dict(range=[0, max(job['on_demand_cost'], job['optimized_cost']) * 1.2]),
                 showlegend=False
             )
             
@@ -549,7 +635,7 @@ if st.session_state.prediction_made:
                 </div>
                 """, unsafe_allow_html=True)
                 
-                # CPU utilization gauge with better styling
+                # CPU utilization gauge
                 fig_cpu = go.Figure(go.Indicator(
                     mode = "gauge+number",
                     value = instance['cpu_utilization'],
@@ -592,7 +678,7 @@ if st.session_state.prediction_made:
                 </div>
                 """, unsafe_allow_html=True)
                 
-                # Memory utilization gauge with better styling
+                # Memory utilization gauge
                 fig_mem = go.Figure(go.Indicator(
                     mode = "gauge+number",
                     value = instance['memory_utilization'],
@@ -637,7 +723,7 @@ if st.session_state.prediction_made:
             with col2:
                 st.info(f"**Estimated End Time:** {job['scheduled_end']}")
             
-            # Create hourly pricing visualization with better styling
+            # Hourly pricing visualization
             hourly_multipliers = [
                 0.3, 0.25, 0.2, 0.2, 0.25, 0.4,
                 0.6, 0.8, 1.0, 1.0, 0.9, 0.8,
@@ -684,7 +770,7 @@ if st.session_state.prediction_made:
             )
 
             fig_schedule.update_layout(
-                title='📊 24-Hour Pricing Pattern - Spot vs On-Demand',
+                title='24-Hour Pricing Pattern - Spot vs On-Demand',
                 height=400, 
                 title_x=0.5,
                 paper_bgcolor='rgba(0,0,0,0)',
