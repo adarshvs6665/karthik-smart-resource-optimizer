@@ -218,6 +218,7 @@ st.markdown(
                 font-weight: 700;
                 color: #667eea;
                 margin-bottom: 0.5rem;
+                min-height: 50px;
             }
             
             .summary-metric .metric-label {
@@ -819,7 +820,12 @@ if st.session_state.prediction_made:
             instance = instance_recommendations[0]['recommended_instance']
             st.markdown(f"""
             <div class="summary-metric">
-                <div class="metric-value">{instance['cpu_count']} vCPU</div>
+                <div class="metric-value"><span style="padding: 0.3rem 0.8rem; 
+                        background: linear-gradient(90deg, #667eea, #764ba2);
+                        border-radius: 12px; 
+                        font-weight: 600; 
+                        font-size: 1.6rem;
+                        color: white;">{instance['instance_name']}</span></div>
                 <div class="metric-label">Recommended Instance</div>
                 <div class="metric-delta" style="color: #f093fb;">{instance['memory_gb']} GB RAM</div>
             </div>
