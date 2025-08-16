@@ -1,6 +1,7 @@
 import pickle
 import pandas as pd
-import numpy as np
+import json
+import requests
 from datetime import datetime, timedelta
 from enum import Enum
 import math
@@ -22,25 +23,9 @@ ROLE_DISPLAY_MAPPING = {
 }
 
 class SmartResourceOptimizer:
-    def __init__(self, model_path="./data/ml/model.pkl", encoders_path="./data/ml/"):
-        try:
-            with open(model_path, "rb") as f:
-                self.model = pickle.load(f)
-            
-            with open(f"{encoders_path}/encoder_role.pkl", "rb") as f:
-                self.role_encoder = pickle.load(f)
-            
-            with open(f"{encoders_path}/encoder_app.pkl", "rb") as f:
-                self.app_encoder = pickle.load(f)
-            
-            with open(f"{encoders_path}/columns_order.pkl", "rb") as f:
-                self.columns_order = pickle.load(f)
-        except FileNotFoundError:
-            # For demo purposes, create mock objects if files don't exist
-            self.model = None
-            self.role_encoder = None
-            self.app_encoder = None
-            self.columns_order = None
+    def __init__(self, pred_endpoint="http://127.0.0.1:5000/predict", timeout=10):
+        self.pred_endpoint = pred_endpoint
+        self.timeout = timeout
         
         # AWS pricing data
         self.instance_pricing = {
@@ -62,47 +47,52 @@ class SmartResourceOptimizer:
         return mapped_role.value
 
     def predict_cpu_request(self, workload_config):
-        mapped_role = self.map_role(workload_config)
+        try:
+            mapped_role = self.map_role(workload_config)
 
-        input_data = {
-            "gpu_request": workload_config.get("gpu_request", 0),
-            "disk_request": workload_config.get("disk_request", 0), 
-            "memory_request": workload_config.get("memory_request", 0),
-            "max_instance_per_node": workload_config.get("max_instance_per_node", 1),
-            "role": mapped_role,
-            "app_name": workload_config.get("app_name", "UNKNOWN")
-        }
-        
-        # Preprocess data
-        for col in ["gpu_request", "disk_request", "memory_request", "max_instance_per_node"]:
-            if pd.isna(input_data[col]):
-                input_data[col] = 0
-        
-        input_data["role"] = str(input_data["role"]) if pd.notna(input_data["role"]) else "UNKNOWN"
-        input_data["app_name"] = str(input_data["app_name"]) if pd.notna(input_data["app_name"]) else "UNKNOWN"
-        
-        df = pd.DataFrame([input_data])
-        
-        role_ohe = self.role_encoder.transform(df[["role"]])
-        app_ohe = self.app_encoder.transform(df[["app_name"]])
-        
-        role_cols = self.role_encoder.get_feature_names_out(["role"]).tolist()
-        app_cols = self.app_encoder.get_feature_names_out(["app_name"]).tolist()
-        
-        numeric_cols = ["gpu_request", "disk_request", "memory_request", "max_instance_per_node"]
-        X_final = pd.concat([
-            df[numeric_cols].astype(float).reset_index(drop=True),
-            pd.DataFrame(role_ohe, columns=role_cols),
-            pd.DataFrame(app_ohe, columns=app_cols)
-        ], axis=1)
-        
-        X_final = X_final.reindex(columns=self.columns_order, fill_value=0)
-        
-        # Make prediction
-        predicted_cpu = self.model.predict(X_final)[0]
-
-        print(f'predicted_cpu: {predicted_cpu}')
-        return max(1, round(predicted_cpu))
+            payload = {
+                "gpu_request": workload_config.get("gpu_request", 0),
+                "disk_request": workload_config.get("disk_request", 0), 
+                "memory_request": workload_config.get("memory_request", 0),
+                "max_instance_per_node": workload_config.get("max_instance_per_node", 1),
+                "role": mapped_role,
+                "app_name": workload_config.get("app_name", "unknown")
+            }
+            
+            for key, value in payload.items():
+                if pd.isna(value) or value is None:
+                    if key in ["gpu_request", "disk_request", "memory_request", "max_instance_per_node"]:
+                        payload[key] = 0
+                    else:
+                        payload[key] = "UNKNOWN"
+            
+            payload["role"] = str(payload["role"])
+            payload["app_name"] = str(payload["app_name"])
+            
+            response = requests.post(
+                self.pred_endpoint, 
+                json=payload, 
+                timeout=self.timeout
+            )
+            
+            if response.status_code == 200:
+                try:
+                    result = response.json()
+                    predicted_cpu = result.get('cpu_pred', 1)
+                    return max(1, round(predicted_cpu))
+                except json.JSONDecodeError:
+                    print(f"Invalid response: {response.text}")
+                    return 1
+            else:
+                print(f"API call failed with status code {response.status_code}: {response.text}")
+                return 1
+                
+        except requests.exceptions.RequestException as e:
+            print(f"API request failed: {e}")
+            return 1
+        except Exception as e:
+            print(f"Unexpected error during API call: {e}")
+            return 1
     
     def optimize_instance_selection(self, workload_configs):
         results = []
@@ -116,8 +106,8 @@ class SmartResourceOptimizer:
             
             for cpu_count, (hourly_cost, memory_gb) in self.instance_pricing.items():
                 memory_mb = memory_gb * 1024
-                
-                # Check if instance can handle the workload
+
+                # Check whether the instance can handle the workload
                 if cpu_count >= predicted_cpu and memory_mb >= memory_needed:
                     if hourly_cost < min_cost:
                         min_cost = hourly_cost

@@ -99,9 +99,9 @@ def predict():
         preds = np.nan_to_num(preds, nan=0.0, posinf=0.0, neginf=0.0)
 
         if isinstance(payload, dict):
-            return jsonify({"cpu_request_pred": float(preds[0])})
+            return jsonify({"cpu_pred": float(preds[0])})
         else:
-            return jsonify({"cpu_request_pred": [float(x) for x in preds]})
+            return jsonify({"cpu_pred": [float(x) for x in preds]})
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
