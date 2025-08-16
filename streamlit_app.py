@@ -4,61 +4,25 @@ import plotly.graph_objects as go
 from datetime import datetime
 from sro import SmartResourceOptimizer, ROLE_DISPLAY_MAPPING
 import warnings
+import json
+import os
 
 warnings.filterwarnings("ignore", message=r".*was created with a default value.*")
 
-sample_workloads = [
-    {
-        "role": "ML_TRAIN",
-        "app_name": "tensorflow_training",
-        "gpu_request": 4,
-        "memory_request": 32000,
-        "disk_request": 500000,
-        "max_instance_per_node": 1,
-        "estimated_execution_hours": 6,
-        "description": "Deep learning model training"
-    },
-    {
-        "role": "ML_INFERENCE",
-        "app_name": "model_serving",
-        "gpu_request": 1,
-        "memory_request": 16000,
-        "disk_request": 100000,
-        "max_instance_per_node": 2,
-        "estimated_execution_hours": 4,
-        "description": "Real-time model inference"
-    },
-    {
-        "role": "ETL",
-        "app_name": "data_preprocessing", 
-        "gpu_request": 0,
-        "memory_request": 8000,
-        "disk_request": 200000,
-        "max_instance_per_node": 4,
-        "estimated_execution_hours": 3,
-        "description": "ETL data transformation"
-    },
-    {
-        "role": "ML_TRAIN",
-        "app_name": "hyperparameter_tuning",
-        "gpu_request": 2,
-        "memory_request": 24000,
-        "disk_request": 300000,
-        "max_instance_per_node": 1,
-        "estimated_execution_hours": 12,
-        "description": "ML hyperparameter optimization"
-    },
-    {
-        "role": "ETL",
-        "app_name": "batch_processing",
-        "gpu_request": 0,
-        "memory_request": 12000,
-        "disk_request": 800000,
-        "max_instance_per_node": 3,
-        "estimated_execution_hours": 5,
-        "description": "Large-scale batch data processing"
-    }
-]
+def load_workloads(file_path):
+    if not os.path.exists(file_path):
+        print(f"Error: File '{file_path}' does not exist.")
+        return []
+
+    try:
+        with open(file_path, "r") as f:
+            workloads = json.load(f)
+            return workloads
+    except json.JSONDecodeError as e:
+        print(f"Error decoding JSON: {e}")
+        return []
+    
+sample_workloads = load_workloads("./data/json/workload_templates.json")
 
 st.set_page_config(
     page_title="Smart Resource Optimizer",
