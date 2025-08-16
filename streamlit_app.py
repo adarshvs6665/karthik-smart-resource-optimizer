@@ -675,7 +675,7 @@ if st.session_state.prediction_made:
             
             st.subheader("Optimal Scheduling")
             
-            # Enhanced scheduling info
+            # scheduling info
             col1, col2 = st.columns(2)
             with col1:
                 st.success(f"**Recommended Start Time:** {job['scheduled_start']}")
@@ -694,10 +694,9 @@ if st.session_state.prediction_made:
             base_cost = instance['hourly_cost']
             spot_prices = [base_cost * multiplier for multiplier in hourly_multipliers]
 
-            # Create the figure with explicit traces
             fig_schedule = go.Figure()
 
-            # Add spot price line
+            # Spot price line
             fig_schedule.add_trace(go.Scatter(
                 x=hours,
                 y=spot_prices,
