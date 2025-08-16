@@ -555,18 +555,15 @@ if st.session_state.prediction_made:
             </div>
             """, unsafe_allow_html=True)
     
-    # Enhanced Detailed results section
     st.markdown('<div class="resource-section">', unsafe_allow_html=True)
     st.markdown('<h2>Detailed Analysis</h2>', unsafe_allow_html=True)
     
-    # Create tabs for different views
     tab1, tab2, tab3 = st.tabs(["Cost Breakdown", "Resource Utilization", "Scheduling"])
     
     with tab1:
         if schedule_results['scheduled_jobs'] and not schedule_results['scheduled_jobs'][0].get('error'):
             job = schedule_results['scheduled_jobs'][0]
             
-            # Fixed cost comparison chart
             fig_cost = go.Figure(data=[
                 go.Bar(
                     x=['On-Demand', 'Optimized Spot'],
@@ -592,7 +589,6 @@ if st.session_state.prediction_made:
             
             st.plotly_chart(fig_cost, use_container_width=True)
             
-            # Enhanced cost breakdown table
             st.subheader("Cost Breakdown")
             cost_df = pd.DataFrame({
                 'Metric': [
@@ -619,7 +615,6 @@ if st.session_state.prediction_made:
             
             st.markdown('<div class="utilization-cards">', unsafe_allow_html=True)
             
-            # Utilization metrics in enhanced cards
             col1, col2 = st.columns(2)
             
             with col1:
@@ -748,7 +743,7 @@ if st.session_state.prediction_made:
                 marker=dict(size=6)
             ))
 
-            # Add on-demand price line
+            # on demand price graph
             fig_schedule.add_trace(go.Scatter(
                 x=hours,
                 y=[base_cost] * 24,
@@ -757,7 +752,7 @@ if st.session_state.prediction_made:
                 line=dict(color='#f44336', width=3, dash='dash')
             ))
 
-            # Highlight optimal execution window
+            # Optimal execution window for task executoin is highlighted
             start_hour = datetime.strptime(job['scheduled_start'], "%Y-%m-%d %H:%M").hour
             end_hour = start_hour + config['estimated_execution_hours']
 
@@ -798,7 +793,6 @@ if st.session_state.prediction_made:
             )
             st.plotly_chart(fig_schedule, use_container_width=True)
             
-            # Enhanced scheduling details
             schedule_df = pd.DataFrame({
                 'Detail': [
                     'Optimal Start Time',
@@ -821,13 +815,13 @@ if st.session_state.prediction_made:
     
     st.markdown('</div>', unsafe_allow_html=True)
     
-    # Enhanced Optimization Summary section
+    # Optimised Summary section
     st.markdown('<div class="optimization-summary">', unsafe_allow_html=True)
     st.markdown('<h2>Optimization Summary</h2>', unsafe_allow_html=True)
     
     st.markdown('<div class="summary-metrics">', unsafe_allow_html=True)
     
-    # Summary metrics with enhanced styling
+    # Summary metrics
     summary_col1, summary_col2, summary_col3, summary_col4 = st.columns(4)
     
     with summary_col1:
@@ -901,7 +895,6 @@ if st.session_state.prediction_made:
     st.markdown('</div>', unsafe_allow_html=True)
 
 else:
-    # Fixed Welcome screen - using containers instead of raw HTML
     st.markdown("""
     <div class="welcome-section">
         <h2>Welcome to Smart Resource Optimizer</h2>
@@ -913,7 +906,6 @@ else:
     </div>
     """, unsafe_allow_html=True)
     
-    # Feature cards using proper Streamlit containers
     st.subheader("Key Features")
     col1, col2, col3 = st.columns(3)
     
@@ -944,7 +936,7 @@ else:
             </div>
             """, unsafe_allow_html=True)
     
-    # Enhanced sample workload examples
+    # sample workload examples
     st.markdown('<div class="resource-section">', unsafe_allow_html=True)
     st.markdown('<h2>Sample Workload Types</h2>', unsafe_allow_html=True)
     
