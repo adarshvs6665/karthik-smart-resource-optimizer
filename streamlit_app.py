@@ -494,11 +494,29 @@ if st.session_state.prediction_made:
         instance = instance_recommendations[0]['recommended_instance']
         with col2:
             st.markdown(f"""
-            <div class="instance-box">
-                <h3>Recommended Instance</h3>
-                <h2>{instance['cpu_count']} vCPU</h2>
-                <h2>{instance['memory_gb']} GB RAM</h2>
-                <p>${instance['hourly_cost']:.4f}/hour</p>
+            <div class="instance-box" style="
+                min-height: 200px; 
+                display: flex; 
+                flex-direction: column; 
+                justify-content: center; 
+                align-items: center;
+                text-align: center;
+            ">
+                <h3 style="margin: 0;">Recommended Instance</h3>
+                <span style="margin: 0.5rem 0; padding: 0.3rem 0.8rem; 
+                        background: linear-gradient(90deg, #667eea, #764ba2);
+                        border-radius: 12px; 
+                        font-weight: 600; 
+                        font-size: 0.9rem;
+                        color: white;">
+                    {instance['instance_name']}
+                </span>
+                <h1 style="margin: 0.5rem 0; font-size: 1.4rem; font-weight: 700;">
+                    {instance['cpu_count']} vCPU {instance['memory_gb']} GB RAM
+                </h1>
+                <p style="margin: 0; font-size: 0.9rem; opacity: 0.85;">
+                    ${instance['hourly_cost']:.4f}/hour
+                </p>
             </div>
             """, unsafe_allow_html=True)
     else:

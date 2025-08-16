@@ -5,6 +5,9 @@ import requests
 from datetime import datetime, timedelta
 from enum import Enum
 import math
+import csv
+import os
+from typing import Dict, List, Optional, Tuple
 
 class NodeRole(str, Enum):
     HN = "HN"
@@ -23,23 +26,52 @@ ROLE_DISPLAY_MAPPING = {
 }
 
 class SmartResourceOptimizer:
-    def __init__(self, pred_endpoint="http://127.0.0.1:5000/predict", timeout=10):
+    def __init__(self, pred_endpoint="http://127.0.0.1:5000/predict", timeout=10, csv_file="./data/csv/aws_pricing.csv"):
         self.pred_endpoint = pred_endpoint
         self.timeout = timeout
-        
-        # AWS pricing data
-        self.instance_pricing = {
-            2: (0.0464, 8),
-            4: (0.0928, 16),
-            8: (0.1856, 32),
-            16: (0.3712, 64),
-            32: (0.7424, 128),
-            64: (1.4848, 256),
-            96: (4.8768, 384),
-            128: (6.5024, 512),
-            192: (9.7536, 768),
-            256: (13.0048, 1024),
-        }
+        self.csv_file = csv_file
+        self.instance_pricing = self._load_csv_pricing()
+
+    def _load_csv_pricing(self) -> Dict:
+        try:
+            if not os.path.exists(self.csv_file):
+                print(f"Pricing csv file {self.csv_file} not found.")
+                return
+            
+            pricing_data = {}
+            with open(self.csv_file, 'r') as file:
+                reader = csv.DictReader(file)
+                for row in reader:
+                    cpu_count = int(row['cpu_count'])
+                    hourly_cost = float(row['hourly_cost'])
+                    memory_gb = int(row['memory_gb'])
+                    instance_name = row['instance_name']
+                    
+                    if cpu_count not in pricing_data or hourly_cost < pricing_data[cpu_count][0]:
+                        pricing_data[cpu_count] = (hourly_cost, memory_gb, instance_name)
+            
+            print(f"Loaded {len(pricing_data)} pricing entries from CSV: {self.csv_file}")
+            return pricing_data
+            
+        except Exception as e:
+            print(f"Failed to load CSV pricing data: {e}")
+            return
+
+    def get_all_instances(self) -> List[Dict]:
+        instances = []
+        try:
+            with open(self.csv_file, 'r') as file:
+                reader = csv.DictReader(file)
+                for row in reader:
+                    instances.append({
+                        'instance_name': row['instance_name'],
+                        'cpu_count': int(row['cpu_count']),
+                        'memory_gb': int(row['memory_gb']),
+                        'hourly_cost': float(row['hourly_cost'])
+                    })
+        except Exception as e:
+            print(f"Error reading instances: {e}")
+        return instances
 
     def map_role(self, workload_config):
         original_role = workload_config.get("role", "unknown")
@@ -96,6 +128,7 @@ class SmartResourceOptimizer:
     
     def optimize_instance_selection(self, workload_configs):
         results = []
+        all_instances = self.get_all_instances()
         
         for i, config in enumerate(workload_configs):
             predicted_cpu = self.predict_cpu_request(config)
@@ -104,7 +137,11 @@ class SmartResourceOptimizer:
             best_instance = None
             min_cost = float('inf')
             
-            for cpu_count, (hourly_cost, memory_gb) in self.instance_pricing.items():
+            for instance in all_instances:
+                cpu_count = instance['cpu_count']
+                memory_gb = instance['memory_gb']
+                hourly_cost = instance['hourly_cost']
+                instance_name = instance['instance_name']
                 memory_mb = memory_gb * 1024
 
                 # Check whether the instance can handle the workload
@@ -112,6 +149,7 @@ class SmartResourceOptimizer:
                     if hourly_cost < min_cost:
                         min_cost = hourly_cost
                         best_instance = {
+                            'instance_name': instance_name,
                             'cpu_count': cpu_count,
                             'memory_gb': memory_gb,
                             'hourly_cost': hourly_cost,
@@ -147,6 +185,7 @@ class SmartResourceOptimizer:
     
     def schedule_workloads(self, workload_configs, time_horizon_hours=24):
         base_time = datetime.now()
+        all_instances = self.get_all_instances()
         
         # Hourly cost multipliers simulating on demand instance pricing patterns
         hourly_multipliers = [
@@ -164,15 +203,20 @@ class SmartResourceOptimizer:
             execution_duration = config.get("estimated_execution_hours", 8)
             
             suitable_instance = None
-            for cpu_count, (base_cost, memory_gb) in self.instance_pricing.items():
-                if cpu_count >= predicted_cpu and (memory_gb * 1024) >= config["memory_request"]:
-                    suitable_instance = (cpu_count, base_cost, memory_gb)
-                    break
+            # Find the cheapest suitable instance
+            min_base_cost = float('inf')
+            for instance in all_instances:
+                if (instance['cpu_count'] >= predicted_cpu and 
+                    (instance['memory_gb'] * 1024) >= config["memory_request"] and
+                    instance['hourly_cost'] < min_base_cost):
+                    suitable_instance = instance
+                    min_base_cost = instance['hourly_cost']
             
             if not suitable_instance:
                 scheduled_jobs.append({
                     'job_id': f"job_{i+1}",
                     'predicted_cpu': predicted_cpu,
+                    'instance_name': 'N/A',
                     'scheduled_start': 'N/A',
                     'scheduled_end': 'N/A',
                     'optimized_cost': None,
@@ -183,7 +227,8 @@ class SmartResourceOptimizer:
                 })
                 continue
             
-            cpu_count, base_cost, memory_gb = suitable_instance
+            base_cost = suitable_instance['hourly_cost']
+            instance_name = suitable_instance['instance_name']
             
             best_start_hour = 0
             min_total_cost = float('inf')
@@ -210,6 +255,7 @@ class SmartResourceOptimizer:
             scheduled_jobs.append({
                 'job_id': f"job_{i+1}",
                 'predicted_cpu': predicted_cpu,
+                'instance_name': instance_name,
                 'scheduled_start': start_time.strftime("%Y-%m-%d %H:%M"),
                 'scheduled_end': end_time.strftime("%Y-%m-%d %H:%M"),
                 'optimized_cost': min_total_cost,
@@ -229,7 +275,7 @@ class SmartResourceOptimizer:
         }
 
 def run():
-    optimizer = SmartResourceOptimizer()
+    optimizer = SmartResourceOptimizer(csv_file="./data/csv/aws_pricing.csv")
     
     sample_workloads = [
         {
@@ -302,7 +348,7 @@ def run():
             continue
             
         inst = rec['recommended_instance']
-        print(f"{rec['workload_id']} ({rec['config']['description']}): {inst['cpu_count']} vCPU, {inst['memory_gb']} GB RAM, ${rec['estimated_cost']:.2f}")
+        print(f"{rec['workload_id']} ({rec['config']['description']}): {inst['instance_name']} ({inst['cpu_count']} vCPU, {inst['memory_gb']} GB RAM), ${rec['estimated_cost']:.2f}")
         total_cost += rec['estimated_cost']
     
     print(f"\nTotal On-Demand Cost: ${total_cost:.2f}")
@@ -313,7 +359,7 @@ def run():
     for job in schedule_results['scheduled_jobs']:
         if job.get('error'):
             continue
-        print(f"{job['job_id']} ({job['config']['description']}): Start {job['scheduled_start']}, Save ${job['savings']:.2f}")
+        print(f"{job['job_id']} ({job['config']['description']}): {job['instance_name']} - Start {job['scheduled_start']}, Save ${job['savings']:.2f}")
     
     summary = schedule_results['optimization_summary']
     print(f"\nOptimization Summary:")
