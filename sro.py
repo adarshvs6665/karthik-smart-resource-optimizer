@@ -26,7 +26,10 @@ ROLE_DISPLAY_MAPPING = {
 }
 
 class SmartResourceOptimizer:
-    def __init__(self, pred_endpoint="http://127.0.0.1:5000/predict", timeout=10, csv_file="./data/csv/aws_pricing.csv"):
+    def __init__(self, pred_endpoint=None, timeout=10, csv_file="./data/csv/aws_pricing.csv"):
+        if pred_endpoint is None:
+            pred_endpoint = os.getenv("PREDICTOR_URL", "http://127.0.0.1:5000/predict")
+        
         self.pred_endpoint = pred_endpoint
         self.timeout = timeout
         self.csv_file = csv_file

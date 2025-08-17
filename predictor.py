@@ -1,8 +1,15 @@
+import logging
 from flask import Flask, request, jsonify
 import pickle
 import numpy as np
 import pandas as pd
 from pathlib import Path
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s"
+)
+logger = logging.getLogger(__name__)
 
 BASE = Path(".")
 # Load artifacts
@@ -68,6 +75,10 @@ def preprocess_input(payload):
 
 # ---- ROUTES ----
 
+@app.before_request
+def log_request_info():
+    logger.info(f"API hit: {request.method} {request.path} | Remote: {request.remote_addr}")
+
 @app.route("/", methods=["GET"])
 def home():
     return jsonify({
@@ -94,6 +105,8 @@ def health():
 def predict():
     try:
         payload = request.get_json(force=True)
+        logger.info(f"/predict payload: {payload}")
+
         X = preprocess_input(payload)
         preds = model.predict(X)
         preds = np.nan_to_num(preds, nan=0.0, posinf=0.0, neginf=0.0)
@@ -103,6 +116,7 @@ def predict():
         else:
             return jsonify({"cpu_pred": [float(x) for x in preds]})
     except Exception as e:
+        logger.error(f"Error in /predict: {e}")
         return jsonify({"error": str(e)}), 400
 
 if __name__ == "__main__":

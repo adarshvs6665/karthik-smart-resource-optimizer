@@ -21,7 +21,30 @@ def load_workloads(file_path):
     except json.JSONDecodeError as e:
         print(f"Error decoding JSON: {e}")
         return []
-    
+
+if 'optimizer' not in st.session_state:
+    st.session_state.optimizer = SmartResourceOptimizer()
+if 'prediction_made' not in st.session_state:
+    st.session_state.prediction_made = False
+if 'workload_config' not in st.session_state:
+    st.session_state.workload_config = {}
+if 'role_display' not in st.session_state:
+    st.session_state.role_display = list(ROLE_DISPLAY_MAPPING.keys())[0]
+if 'app_name' not in st.session_state:
+    st.session_state.app_name = "my_application"
+if 'description' not in st.session_state:
+    st.session_state.description = ""
+if 'gpu_request' not in st.session_state:
+    st.session_state.gpu_request = 2
+if 'memory_request' not in st.session_state:
+    st.session_state.memory_request = 8192
+if 'disk_request' not in st.session_state:
+    st.session_state.disk_request = 50000
+if 'max_instance_per_node' not in st.session_state:
+    st.session_state.max_instance_per_node = 1
+if 'estimated_execution_hours' not in st.session_state:
+    st.session_state.estimated_execution_hours = 8.0
+
 sample_workloads = load_workloads("./data/json/workload_templates.json")
 
 st.set_page_config(
@@ -345,16 +368,15 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-if 'optimizer' not in st.session_state:
-    st.session_state.optimizer = SmartResourceOptimizer()
-if 'prediction_made' not in st.session_state:
-    st.session_state.prediction_made = False
-if 'workload_config' not in st.session_state:
-    st.session_state.workload_config = {}
-
 with st.sidebar:
     template_names = [w["app_name"] for w in sample_workloads]
-    selected_template = st.selectbox("Choose from a template", ["Custom"] + template_names, key="template_selector")
+    
+    template_selector_key = "template_selector_main"
+    selected_template = st.selectbox(
+        "Choose from a template", 
+        ["Custom"] + template_names, 
+        key=template_selector_key
+    )
 
     if selected_template != "Custom":
         tpl = next((w for w in sample_workloads if w["app_name"] == selected_template), None)
