@@ -436,10 +436,10 @@ with st.sidebar.form("workload_form"):
 
         memory_request = st.number_input(
             "Memory (MB)",
-            min_value=1024,
+            min_value=64,
             max_value=1048576,
             value=int(st.session_state.get("memory_request", 8192)),
-            step=1024,
+            step=512,
             key="memory_request",
             help="Memory requirement in megabytes",
         )
